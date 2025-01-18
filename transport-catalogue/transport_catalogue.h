@@ -11,16 +11,20 @@
 
 namespace catalogue{
 
-	struct StopSt{
+	struct Stop{
 		std::string name;
-		double latitude;
-		double longitude;
+		geo_math::Coordinates coordinates;
 
 	};
 
-	struct AllBussForStop{
-		std::string reqest;
-		std::set<std::string_view> collect;
+	struct Bus{
+		std::string name;
+		std::vector<std::string> stops;
+	};
+
+	struct BusesForStop {
+		std::string request_status;
+		std::set<std::string_view> buses;
 	};
 
 
@@ -44,19 +48,24 @@ using namespace geo_math;
 
 class TransportCatalogue {
 
-	std::deque<StopSt> stops_;
-	std::deque<std::pair<std::string,std::vector<std::string>>> buses_;
-	std::unordered_map<std::string_view,StopSt*> stops_ptr_;
-	std::unordered_map<std::string_view,std::vector<std::string>*> bus_ptr_;
-	std::unordered_map<std::string,std::set<std::string_view>> bases_for_stops_;  
-	public:
+public:
 
 	void AddStop(std::string id , double lat, double lag);
 	void AddBus(std::string id, std::vector<std::string_view> stops);
 	BusCounted CountStation(std::string_view id ) const;
-	BusCounted ReturnBus(std::string_view id)const;
-	void BusForStop(std::string_view id );
-	AllBussForStop  ReturnStop(std::string_view id )const;
+	BusCounted GetBusStatistics(std::string_view id)const;
+	void LinkBusToStops(std::string_view id );
+	BusesForStop GetBusesForStop(std::string_view id )const;
+	const Stop* GetStop(std::string_view name) const;
+	const Bus* GetBus(std::string_view name) const;
+
+private:
+
+	std::deque<Stop> stops_;
+	std::deque<Bus> buses_;
+	std::unordered_map<std::string_view, Stop*> stops_ptr_;
+	std::unordered_map<std::string_view, Bus*> bus_ptr_;
+	std::unordered_map<std::string,std::set<std::string_view>> bases_for_stops_;  
 
 };
 }
