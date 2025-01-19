@@ -52,15 +52,15 @@ public:
 
 	void AddStop(std::string id , double lat, double lag);
 	void AddBus(std::string id, std::vector<std::string_view> stops);
-	BusCounted CountStation(std::string_view id ) const;
 	BusCounted GetBusStatistics(std::string_view id)const;
-	void LinkBusToStops(std::string_view id );
 	BusesForStop GetBusesForStop(std::string_view id )const;
 	const Stop* GetStop(std::string_view name) const;
 	const Bus* GetBus(std::string_view name) const;
 
 private:
 
+	BusCounted CountStation(std::string_view id ) const;
+	void LinkBusToStops(std::string_view id );
 	std::deque<Stop> stops_;
 	std::deque<Bus> buses_;
 	std::unordered_map<std::string_view, Stop*> stops_ptr_;
