@@ -1,98 +1,65 @@
-#include "svg.h"
+#pragma once
+
+#include <deque>
 #include <string>
-#include <iomanip>
+#include <vector>
+#include <set>
+#include <unordered_map>
+#include <map>
+#include "geo.cpp"
+#include <iostream>
+#include <functional>
 #include <utility>
+#include "domain.h"
 
-namespace svg {
+using domain::Stop;
+using domain::Bus;
 
-std::ostream& operator<<(std::ostream& out, const StrokeLineCap& line_cap) {
-    switch (line_cap) {
-        case StrokeLineCap::BUTT: out << "butt"; break;
-        case StrokeLineCap::ROUND: out << "round"; break;
-        case StrokeLineCap::SQUARE: out << "square"; break;
-    }
-    return out;
-}
+namespace catalogue {
+    
+    struct BusesForStop {
+        std::string request_status;
+        std::set<std::string_view> buses;
+    };
 
-std::ostream& operator<<(std::ostream& out, const StrokeLineJoin& line_join) {
-    switch (line_join) {
-        case StrokeLineJoin::ARCS: out << "arcs"; break;
-        case StrokeLineJoin::BEVEL: out << "bevel"; break;
-        case StrokeLineJoin::MITER: out << "miter"; break;
-        case StrokeLineJoin::MITER_CLIP: out << "miter-clip"; break;
-        case StrokeLineJoin::ROUND: out << "round"; break;
-    }
-    return out;
-}
-
-void Circle::RenderObject(const RenderContext& context) const {
-    auto& out = context.out;
-    out << "<circle "
-        << "cx=\"" << center_.x << "\" "
-        << "cy=\"" << center_.y << "\" "
-        << "r=\"" << radius_ << "\"";
-    RenderAttrs(out);
-    out << "/>";
-}
-
-void Polyline::RenderObject(const RenderContext& context) const {
-    auto& out = context.out;
-    out << "<polyline points=\"";
-    for (size_t i = 0; i < points_.size(); ++i) {
-        out << points_[i].x << "," << points_[i].y;
-        if (i + 1 < points_.size())
-            out << " ";
-    }
-    out << "\"";
-    RenderAttrs(out);
-    out << "/>";
-}
-
-std::string EscapeXML(const std::string& data) {
-    std::string result;
-    result.reserve(data.size());
-    for (char ch : data) {
-        switch (ch) {
-            case '&': result.append("&amp;"); break;
-            case '"': result.append("&quot;"); break;
-            case '\'': result.append("&apos;"); break;
-            case '<': result.append("&lt;"); break;
-            case '>': result.append("&gt;"); break;
-            default: result.push_back(ch);
+    struct BusCounted {
+        size_t amount = 0;
+        size_t unique = 0;
+        double length = 0;     
+        double geo_length = 0; 
+        bool IsEmpty() const {
+            return (amount == 0 && unique == 0 && length == 0 && geo_length == 0);
         }
-    }
-    return result;
-}
+    };
 
-void Text::RenderObject(const RenderContext& context) const {
-    auto& out = context.out;
-    out << "<text "
-        << "x=\"" << pos_.x << "\" "
-        << "y=\"" << pos_.y << "\" "
-        << "dx=\"" << offset_.x << "\" "
-        << "dy=\"" << offset_.y << "\" "
-        << "font-size=\"" << font_size_ << "\" ";
-    if (!font_family_.empty())
-        out << "font-family=\"" << font_family_ << "\" ";
-    if (!font_weight_.empty())
-        out << "font-weight=\"" << font_weight_ << "\" ";
-    RenderAttrs(out);
-    out << ">" << EscapeXML(data_) << "</text>";
-}
+    struct StopPairHasher {
+        size_t operator()(const std::pair<const Stop*, const Stop*>& p) const {
+            auto h1 = std::hash<const void*>{}(p.first);
+            auto h2 = std::hash<const void*>{}(p.second);
+            return h1 ^ (h2 << 1);
+        }
+    };
 
-void Document::AddPtr(std::unique_ptr<Object>&& obj) {
-    objects_.push_back(std::move(obj));
-}
+    class TransportCatalogue {
+    public:
+        void AddStop(const std::string& name, double lat, double lng);
+        void AddBus(const std::string& name, const std::vector<std::string_view>& stops, bool is_roundtrip);
+        void AddDistance(const std::string& stop_name, const std::string& neighbor, int distance);
+        const std::unordered_map<std::string_view, Bus*>& GetAllBuses() const;
+        int GetDistance(const Stop* a, const Stop* b) const;
+        BusCounted GetBusStatistics(std::string_view bus_name) const;
+        BusesForStop GetBusesForStop(std::string_view stop_name) const;
+        const Stop* GetStop(std::string_view name) const;
+        const Bus* GetBus(std::string_view name) const;
+    private:
+        BusCounted CountStation(std::string_view bus_name) const;
+        void LinkBusToStops(std::string_view bus_name);
 
-void Document::Render(std::ostream& out) const {
-    out << "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>" << std::endl;
-    out << "<svg xmlns=\"http://www.w3.org/2000/svg\" version=\"1.1\">" << std::endl;
-    RenderContext ctx(out, 2, 2);
-    for (const auto& obj : objects_) {
-        obj->Render(ctx);
-    }
-    out << "</svg>";
-}
-
-
-}  // namespace svg
+        std::deque<Stop> stops_;
+        std::deque<Bus> buses_;
+        std::unordered_map<std::string_view, Stop*> stops_ptr_;
+        std::unordered_map<std::string_view, Bus*> bus_ptr_;
+        std::unordered_map<std::string_view, std::set<std::string_view>> buses_for_stop_;
+        std::unordered_map<std::pair<const Stop*, const Stop*>, int, StopPairHasher> distances_;
+    };
+} // namespace catalogue
