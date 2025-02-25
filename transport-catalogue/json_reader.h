@@ -5,12 +5,11 @@
 
 namespace json_reader {
 
-    void ReadTransportCatalogue(const json::Document& doc, catalogue::TransportCatalogue& catalogue);
+// Оставленна только одна функция. Заполняет транспортный справочник данными из входного JSON-документа.
+void ReadTransportCatalogue(const json::Document& doc, catalogue::TransportCatalogue& catalogue);
 
-    json::Document ProcessRequests(const json::Document& doc, const catalogue::TransportCatalogue& catalogue);
-    
-    void ReadTransportCatalogue(const json::Document& doc, catalogue::TransportCatalogue& catalogue);
-    
-    renderer::RenderSettings ParseRenderSettings(const json::Document& doc); 
+json::Document ProcessRequests(const json::Document& doc, const catalogue::TransportCatalogue& catalogue);
+
+renderer::RenderSettings ParseRenderSettings(const json::Document& doc);
+
 }  // namespace json_reader
-
