@@ -1,5 +1,6 @@
 #include "request_handler.h"
 #include <sstream>
+#include <string>
 
 namespace request_handler {
 
@@ -7,17 +8,16 @@ RequestHandler::RequestHandler(const catalogue::TransportCatalogue& catalogue)
     : catalogue_(catalogue) {}
 
 std::string RequestHandler::GetBusInfo(const std::string& bus_name) const {
+    const auto* bus = catalogue_.GetBus(bus_name);
     std::ostringstream os;
-    if (catalogue_.GetBus(bus_name) == nullptr) {
-        os << "{ \"request_id\": 0, \"error_message\": \"not found\" }";
+    if (!bus) {
+        os << "Bus " << bus_name << ": not found";
     } else {
-    auto stats = catalogue_.GetBusStatistics(bus_name);
-    double curvature = (stats.geo_length > 0) ? (stats.length / stats.geo_length) : 0.0;
-        os << "{ \"request_id\": 0, "
-           << "\"stop_count\": " << stats.amount << ", "
-           << "\"unique_stop_count\": " << stats.unique << ", "
-           << "\"route_length\": " << stats.length << ", "
-           << "\"curvature\": " << curvature << " }";
+        auto stats = catalogue_.GetBusStatistics(bus_name);
+        double curvature = (stats.geo_length > 0) ? (stats.length / stats.geo_length) : 0.0;
+        os << "Bus " << bus_name << ": " << stats.amount << " stops on route, "
+           << stats.unique << " unique stops, " << stats.length << " route length, "
+           << curvature << " curvature";
     }
     return os.str();
 }
@@ -25,18 +25,19 @@ std::string RequestHandler::GetBusInfo(const std::string& bus_name) const {
 std::string RequestHandler::GetStopInfo(const std::string& stop_name) const {
     auto buses_info = catalogue_.GetBusesForStop(stop_name);
     std::ostringstream os;
-   if (buses_info.request_status == "not found") {
-        os << "{ \"request_id\": 0, \"error_message\": \"not found\" }";
+    if (buses_info.request_status == "not found") {
+        os << "Stop " << stop_name << ": not found";
+    } else if (buses_info.request_status == "empty") {
+        os << "Stop " << stop_name << ": no buses";
     } else {
-        os << "{ \"request_id\": 0, \"buses\": [";
+        os << "Stop " << stop_name << ": buses ";
         bool first = true;
         for (const auto& bus : buses_info.buses) {
             if (!first)
-                os << ", ";
-            os << "\"" << bus << "\"";
+                os << " ";
+            os << bus;
             first = false;
         }
-        os << "] }";
     }
     return os.str();
 }
