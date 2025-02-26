@@ -1,48 +1,63 @@
 #include "json_reader.h"
-#include "transport_catalogue.h"
-#include "map_renderer.h"
-#include <sstream>
+#include "domain.h"
 #include <vector>
 #include <string>
 #include <algorithm>
-#include <iomanip>
+#include <sstream>
 
 namespace json_reader {
 
-void ReadTransportCatalogue(const json::Document& doc, catalogue::TransportCatalogue& catalogue) {
+InputData ParseInputData(const json::Document& doc) {
+    InputData input;
     const auto& root = doc.GetRoot().AsMap();
     const auto& base_requests = root.at("base_requests").AsArray();
-
+    
     for (const auto& node : base_requests) {
         const auto& obj = node.AsMap();
-        if (obj.at("type").AsString() == "Stop") {
-            std::string name = obj.at("name").AsString();
-            double lat = obj.at("latitude").AsDouble();
-            double lng = obj.at("longitude").AsDouble();
-            catalogue.AddStop(name, lat, lng);
-        }
-    }
-
-    for (const auto& node : base_requests) {
-        const auto& obj = node.AsMap();
-        if (obj.at("type").AsString() == "Stop") {
-            std::string name = obj.at("name").AsString();
+        std::string type = obj.at("type").AsString();
+        if (type == "Stop") {
+            StopData stop;
+            stop.name = obj.at("name").AsString();
+            stop.latitude = obj.at("latitude").AsDouble();
+            stop.longitude = obj.at("longitude").AsDouble();
             if (obj.count("road_distances") > 0) {
                 const auto& distances = obj.at("road_distances").AsMap();
                 for (const auto& [neighbor, distance_node] : distances) {
-                    int distance = distance_node.AsInt();
-                    catalogue.AddDistance(name, neighbor, distance);
+                    stop.road_distances[neighbor] = distance_node.AsInt();
                 }
             }
-        } else if (obj.at("type").AsString() == "Bus") {
-            std::string bus_name = obj.at("name").AsString();
-            bool is_roundtrip = obj.at("is_roundtrip").AsBool();
-            std::vector<std::string_view> bus_stops;
+            input.stops.push_back(std::move(stop));
+        } else if (type == "Bus") {
+            BusData bus;
+            bus.name = obj.at("name").AsString();
+            bus.is_roundtrip = obj.at("is_roundtrip").AsBool();
             for (const auto& stop_node : obj.at("stops").AsArray()) {
-                bus_stops.push_back(stop_node.AsString());
+                bus.stops.push_back(stop_node.AsString());
             }
-            catalogue.AddBus(bus_name, bus_stops, is_roundtrip);
+            input.buses.push_back(std::move(bus));
         }
+    }
+    if (root.count("render_settings")) {
+        input.render_settings = ParseRenderSettings(doc);
+    }
+    return input;
+}
+
+void FillTransportCatalogue(const InputData& input, catalogue::TransportCatalogue& catalogue) {
+    for (const auto& stop : input.stops) {
+        catalogue.AddStop(stop.name, stop.latitude, stop.longitude);
+    }
+    for (const auto& stop : input.stops) {
+        for (const auto& [neighbor, distance] : stop.road_distances) {
+            catalogue.AddDistance(stop.name, neighbor, distance);
+        }
+    }
+    for (const auto& bus : input.buses) {
+        std::vector<std::string_view> bus_stops;
+        for (const auto& stop : bus.stops) {
+            bus_stops.push_back(stop);
+        }
+        catalogue.AddBus(bus.name, bus_stops, bus.is_roundtrip);
     }
 }
 
@@ -60,7 +75,7 @@ json::Document ProcessRequests(const json::Document& doc, const catalogue::Trans
         std::string type = req.at("type").AsString();
         Dict response;
         response["request_id"] = Node(request_id);
-
+        
         if (type == "Bus") {
             std::string bus_name = req.at("name").AsString();
             if (catalogue.GetBus(bus_name) == nullptr) {
@@ -102,11 +117,13 @@ json::Document ProcessRequests(const json::Document& doc, const catalogue::Trans
 
 renderer::RenderSettings ParseRenderSettings(const json::Document& doc) {
     renderer::RenderSettings settings;
+    
     const auto& root = doc.GetRoot().AsMap();
     if (!root.count("render_settings")) {
-        return settings;
+        return settings;  
     }
     const auto& render_settings = root.at("render_settings").AsMap();
+    
     if (render_settings.count("width")) {
         settings.width = render_settings.at("width").AsDouble();
     }
