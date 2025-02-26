@@ -8,8 +8,9 @@ int main() {
     auto doc = json::Load(std::cin);
     
     catalogue::TransportCatalogue catalogue;
-    json_reader::ReadTransportCatalogue(doc, catalogue);  
-
+    auto input_data = json_reader::ParseInputData(doc);
+    json_reader::FillTransportCatalogue(input_data, catalogue);
+    
     auto answer = json_reader::ProcessRequests(doc, catalogue);
     json::Print(answer, std::cout);
     
