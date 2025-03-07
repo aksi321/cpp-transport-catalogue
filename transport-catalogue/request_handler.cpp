@@ -1,50 +1,75 @@
 #include "request_handler.h"
-#include <sstream>
-#include <string>
+#include "json_builder.h"
 
 namespace request_handler {
 
 RequestHandler::RequestHandler(const catalogue::TransportCatalogue& catalogue)
-    : catalogue_(catalogue) 
-{}
+    : catalogue_(catalogue) {}
 
-std::string RequestHandler::GetBusInfo(const std::string& bus_name) const {
-    // Просто запрашиваем информацию из транспортного справочника.
+json::Node RequestHandler::GetBusInfo(const std::string& bus_name, int request_id) const {
+    json::Builder builder;
+    
+    if (bus_name.empty()) {
+        return builder.StartDict()
+            .Key("request_id").Value(request_id)
+            .Key("error_message").Value("not found")
+            .EndDict()
+            .Build();
+    }
+
     const auto* bus = catalogue_.GetBus(bus_name);
-    std::ostringstream os;
     if (!bus) {
-        os << "Bus " << bus_name << ": not found";
-    } else {
-        auto stats = catalogue_.GetBusStatistics(bus_name);
-        double curvature = (stats.geo_length > 0) ? (stats.length / stats.geo_length) : 0.0;
-        os << "Bus " << bus_name << ": " 
-           << stats.amount << " stops on route, " 
-           << stats.unique << " unique stops, " 
-           << stats.length << " route length, " 
-           << curvature << " curvature";
+        return builder.StartDict()
+            .Key("request_id").Value(request_id)
+            .Key("error_message").Value("not found")
+            .EndDict()
+            .Build();
     }
-    return os.str();
+
+    auto stats = catalogue_.GetBusStatistics(bus_name);
+    double curvature = (stats.geo_length > 0) ? (stats.length / stats.geo_length) : 0.0;
+
+    return builder.StartDict()
+        .Key("request_id").Value(request_id)
+        .Key("route_length").Value(static_cast<int>(stats.length))
+        .Key("curvature").Value(curvature)
+        .Key("stop_count").Value(static_cast<int>(stats.amount))
+        .Key("unique_stop_count").Value(static_cast<int>(stats.unique))
+        .EndDict()
+        .Build();
 }
 
-std::string RequestHandler::GetStopInfo(const std::string& stop_name) const {
-    // Просто запрашиваем информацию о остановке из транспортного справочника.
+json::Node RequestHandler::GetStopInfo(const std::string& stop_name, int request_id) const {
+    json::Builder builder;
+
+    if (stop_name.empty()) {
+        return builder.StartDict()
+            .Key("request_id").Value(request_id)
+            .Key("error_message").Value("not found")
+            .EndDict()
+            .Build();
+    }
+
     auto buses_info = catalogue_.GetBusesForStop(stop_name);
-    std::ostringstream os;
     if (buses_info.request_status == "not found") {
-        os << "Stop " << stop_name << ": not found";
-    } else if (buses_info.request_status == "empty") {
-        os << "Stop " << stop_name << ": no buses";
-    } else {
-        os << "Stop " << stop_name << ": buses ";
-        bool first = true;
-        for (const auto& bus : buses_info.buses) {
-            if (!first)
-                os << " ";
-            os << bus;
-            first = false;
-        }
+        return builder.StartDict()
+            .Key("request_id").Value(request_id)
+            .Key("error_message").Value("not found")
+            .EndDict()
+            .Build();
     }
-    return os.str();
+
+    json::Array buses;
+    for (const auto& bus : buses_info.buses) {
+        buses.push_back(std::string(bus));
+    }
+
+    return builder.StartDict()
+        .Key("request_id").Value(request_id)
+        .Key("buses").Value(std::move(buses))
+        .EndDict()
+        .Build();
 }
 
-} // namespace request_handler
+
+}  // namespace request_handler
