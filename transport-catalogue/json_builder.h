@@ -8,12 +8,13 @@
 
 namespace json {
 
+class DictContext;
+class ArrayContext;
 class Builder {
 public:
-    Builder() : built_(false) {
-        nodes_stack_.push_back(&root_);
-    }
+    Builder();
 
+    // реализация value<T> теперь через контексты
     template <typename T>
     Builder& Value(T&& value) {
         CheckNotBuilt();
@@ -37,121 +38,48 @@ public:
         return *this;
     }
 
-    Builder& Key(const std::string& key) {
-        CheckNotBuilt();
-        Node* current = nodes_stack_.back();
-        auto& curr_val = current->GetValue();
-        if (!std::holds_alternative<Dict>(curr_val)) {
-            throw std::logic_error("Key() can only be used inside a dictionary");
-        }
-        if (pending_key_) {
-            throw std::logic_error("Previous key has no corresponding value");
-        }
-        pending_key_ = key;
-        return *this;
-    }
-
-    Builder& StartDict() {
-        CheckNotBuilt();
-        Node* current = nodes_stack_.back();
-        if (std::holds_alternative<Dict>(current->GetValue())) {
-            if (!pending_key_) {
-                throw std::logic_error("Key must be set before starting a dictionary in a dict");
-            }
-            auto& dict = std::get<Dict>(current->GetValue());
-            auto result = dict.emplace(*pending_key_, Node(Dict{}));
-            if (!result.second) {
-                throw std::logic_error("Duplicate key insertion in dictionary");
-            }
-            pending_key_.reset();
-            nodes_stack_.push_back(&result.first->second);
-        } else if (std::holds_alternative<Array>(current->GetValue())) {
-            auto& arr = std::get<Array>(current->GetValue());
-            arr.push_back(Node(Dict{}));
-            nodes_stack_.push_back(&arr.back());
-        } else if (std::holds_alternative<std::nullptr_t>(current->GetValue())) {
-
-            *current = Node(Dict{});
-            nodes_stack_.push_back(current);
-        } else {
-            throw std::logic_error("StartDict() called in invalid context");
-        }
-        return *this;
-    }
-
-    Builder& EndDict() {
-        CheckNotBuilt();
-        Node* current = nodes_stack_.back();
-        if (!std::holds_alternative<Dict>(current->GetValue())) {
-            throw std::logic_error("EndDict() called but current container is not a dictionary");
-        }
-        if (pending_key_) {
-            throw std::logic_error("A key was set but no value provided in dictionary");
-        }
-        nodes_stack_.pop_back();
-        return *this;
-    }
-
-    Builder& StartArray() {
-        CheckNotBuilt();
-        Node* current = nodes_stack_.back();
-        if (std::holds_alternative<Dict>(current->GetValue())) {
-            if (!pending_key_) {
-                throw std::logic_error("Key must be set before starting an array in a dictionary");
-            }
-            auto& dict = std::get<Dict>(current->GetValue());
-            auto result = dict.emplace(*pending_key_, Node(Array{}));
-            if (!result.second) {
-                throw std::logic_error("Duplicate key insertion in dictionary");
-            }
-            pending_key_.reset();
-            nodes_stack_.push_back(&result.first->second);
-        } else if (std::holds_alternative<Array>(current->GetValue())) {
-            auto& arr = std::get<Array>(current->GetValue());
-            arr.push_back(Node(Array{}));
-            nodes_stack_.push_back(&arr.back());
-        } else if (std::holds_alternative<std::nullptr_t>(current->GetValue())) {
-            *current = Node(Array{});
-            nodes_stack_.push_back(current);
-        } else {
-            throw std::logic_error("StartArray() called in invalid context");
-        }
-        return *this;
-    }
-
-    Builder& EndArray() {
-        CheckNotBuilt();
-        Node* current = nodes_stack_.back();
-        if (!std::holds_alternative<Array>(current->GetValue())) {
-            throw std::logic_error("EndArray() called but current container is not an array");
-        }
-        nodes_stack_.pop_back();
-        return *this;
-    }
-
-    Node Build() {
-        CheckNotBuilt();
-        if (nodes_stack_.size() != 1) {
-            throw std::logic_error("Not all containers have been closed");
-        }
-        if (pending_key_) {
-            throw std::logic_error("A key was set but no value provided");
-        }
-        built_ = true;
-        return root_;
-    }
+    Builder& Key(const std::string& key);
+    DictContext StartDict();
+    Builder& EndDict();
+    ArrayContext StartArray();
+    Builder& EndArray();
+    Node Build();
 
 private:
-    void CheckNotBuilt() const {
-        if (built_) {
-            throw std::logic_error("JSON document already built");
-        }
-    }
+    void CheckNotBuilt() const;
 
     Node root_;
     std::vector<Node*> nodes_stack_;
     std::optional<std::string> pending_key_;
     bool built_;
+};
+
+//Добавлены вспомогательные классы контекстов для управления структурой
+class DictContext {
+public:
+    explicit DictContext(Builder& builder) : builder_(builder) {}
+
+    DictContext& Key(const std::string& key) { builder_.Key(key); return *this; }
+    DictContext& Value(const Node& value) { builder_.Value(value); return *this; }
+    DictContext& StartDict() { builder_.StartDict(); return *this; }
+    ArrayContext StartArray();
+    Builder& EndDict() { return builder_.EndDict(); }
+
+private:
+    Builder& builder_;
+};
+
+class ArrayContext {
+public:
+    explicit ArrayContext(Builder& builder) : builder_(builder) {}
+
+    ArrayContext& Value(const Node& value) { builder_.Value(value); return *this; }
+    DictContext StartDict();
+    ArrayContext StartArray();
+    Builder& EndArray() { return builder_.EndArray(); }
+
+private:
+    Builder& builder_;
 };
 
 } // namespace json
