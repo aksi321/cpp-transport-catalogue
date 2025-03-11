@@ -20,7 +20,7 @@ Builder& Builder::Key(const std::string& key) {
     return *this;
 }
 
-DictContext Builder::StartDict() {
+DictItemContext Builder::StartDict() {
     CheckNotBuilt();
     Node* current = nodes_stack_.back();
     if (std::holds_alternative<Dict>(current->GetValue())) {
@@ -44,16 +44,19 @@ DictContext Builder::StartDict() {
     } else {
         throw std::logic_error("StartDict() called in invalid context");
     }
-    return DictContext(*this);
+    return DictItemContext(*this);
 }
 
 Builder& Builder::EndDict() {
     CheckNotBuilt();
+    if (nodes_stack_.empty()) {
+        throw std::logic_error("No dictionary to end");
+    }
     nodes_stack_.pop_back();
     return *this;
 }
 
-ArrayContext Builder::StartArray() {
+ArrayItemContext Builder::StartArray() {
     CheckNotBuilt();
     Node* current = nodes_stack_.back();
     if (std::holds_alternative<Dict>(current->GetValue())) {
@@ -74,11 +77,14 @@ ArrayContext Builder::StartArray() {
     } else {
         throw std::logic_error("StartArray() called in invalid context");
     }
-    return ArrayContext(*this);
+    return ArrayItemContext(*this);
 }
 
 Builder& Builder::EndArray() {
     CheckNotBuilt();
+    if (nodes_stack_.empty()) {
+        throw std::logic_error("No array to end");
+    }
     nodes_stack_.pop_back();
     return *this;
 }
@@ -99,18 +105,6 @@ void Builder::CheckNotBuilt() const {
     if (built_) {
         throw std::logic_error("JSON document already built");
     }
-}
-
-ArrayContext DictContext::StartArray() {
-    return builder_.StartArray();
-}
-
-DictContext ArrayContext::StartDict() {
-    return builder_.StartDict();
-}
-
-ArrayContext ArrayContext::StartArray() {
-    return builder_.StartArray();
 }
 
 } // namespace json
