@@ -46,6 +46,7 @@ namespace catalogue {
         void AddBus(const std::string& name, const std::vector<std::string_view>& stops, bool is_roundtrip);
         void AddDistance(const std::string& stop_name, const std::string& neighbor, int distance);
         const std::unordered_map<std::string_view, Bus*>& GetAllBuses() const;
+        const std::unordered_map<std::string_view, Stop*>& GetAllStops() const;
         int GetDistance(const Stop* a, const Stop* b) const;
         BusCounted GetBusStatistics(std::string_view bus_name) const;
         BusesForStop GetBusesForStop(std::string_view stop_name) const;
