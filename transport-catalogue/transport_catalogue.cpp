@@ -36,6 +36,9 @@ namespace catalogue {
         return bus_ptr_;
     }
 
+    const std::unordered_map<std::string_view, Stop*>& TransportCatalogue::GetAllStops() const {
+        return stops_ptr_;
+    }
 
     int TransportCatalogue::GetDistance(const Stop* a, const Stop* b) const {
         auto it = distances_.find({a, b});
