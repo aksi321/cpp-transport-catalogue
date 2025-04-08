@@ -42,7 +42,7 @@ json::Node RequestHandler::GetBusInfo(const std::string& bus_name, int request_i
 json::Node RequestHandler::GetStopInfo(const std::string& stop_name, int request_id) const {
     json::Builder builder;
 
-    if (stop_name.empty()) {
+    if (stop_name.empty() || !catalogue_.GetStop(stop_name)) {
         return builder.StartDict()
             .Key("request_id").Value(request_id)
             .Key("error_message").Value("not found")
@@ -50,26 +50,18 @@ json::Node RequestHandler::GetStopInfo(const std::string& stop_name, int request
             .Build();
     }
 
-    auto buses_info = catalogue_.GetBusesForStop(stop_name);
-    if (buses_info.request_status == "not found") {
-        return builder.StartDict()
-            .Key("request_id").Value(request_id)
-            .Key("error_message").Value("not found")
-            .EndDict()
-            .Build();
-    }
+    const auto& buses = catalogue_.GetBusesForStop(stop_name);
 
-    json::Array buses;
-    for (const auto& bus : buses_info.buses) {
-        buses.push_back(std::string(bus));
-    }
-
-    return builder.StartDict()
+    builder.StartDict()
         .Key("request_id").Value(request_id)
-        .Key("buses").Value(std::move(buses))
-        .EndDict()
-        .Build();
-}
+        .Key("buses").StartArray();
 
+    for (const auto& bus : buses) {
+        builder.Value(std::string(bus));
+    }
+
+    builder.EndArray();
+    return builder.EndDict().Build();
+}
 
 }  // namespace request_handler
